@@ -1,0 +1,153 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "C:\\UCSD\\Fall25\\DSC180A\\blockchain-registry-app\\onchain\\contracts\\DatasetRegistryTemplate.sol": {
+      "lastModificationDate": 1771720335340,
+      "contentHash": "14c2de6ed2204b54022344f6b8de60e0",
+      "sourceName": "contracts/DatasetRegistryTemplate.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "evmVersion": "paris",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "DatasetRegistryTemplate"
+      ]
+    },
+    "C:\\UCSD\\Fall25\\DSC180A\\blockchain-registry-app\\onchain\\contracts\\RegistryFactory.sol": {
+      "lastModificationDate": 1771720361614,
+      "contentHash": "f47739c0238ffd5943a92db16eff9c15",
+      "sourceName": "contracts/RegistryFactory.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "evmVersion": "paris",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./DocumentRegistryTemplate.sol",
+        "./DatasetRegistryTemplate.sol",
+        "./MediaRegistryTemplate.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "RegistryFactory"
+      ]
+    },
+    "C:\\UCSD\\Fall25\\DSC180A\\blockchain-registry-app\\onchain\\contracts\\DocumentRegistryTemplate.sol": {
+      "lastModificationDate": 1771720323562,
+      "contentHash": "c256539abb07471617618f94eae5d921",
+      "sourceName": "contracts/DocumentRegistryTemplate.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "evmVersion": "paris",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "DocumentRegistryTemplate"
+      ]
+    },
+    "C:\\UCSD\\Fall25\\DSC180A\\blockchain-registry-app\\onchain\\contracts\\MediaRegistryTemplate.sol": {
+      "lastModificationDate": 1771720346905,
+      "contentHash": "d0250d2fbe92ba0bbc987ea7b0e7e925",
+      "sourceName": "contracts/MediaRegistryTemplate.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "evmVersion": "paris",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "MediaRegistryTemplate"
+      ]
+    }
+  }
+}

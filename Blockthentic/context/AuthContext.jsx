@@ -79,15 +79,48 @@ export function AuthProvider({ children }) {
       Alert.alert('Supabase not configured', 'Please add SUPABASE_URL and SUPABASE_ANON_KEY.');
       return { error: new Error('Supabase not configured') };
     }
+
+    const normalizedUsername = (username || '').trim().toLowerCase();
+    if (!normalizedUsername) {
+      return { error: new Error('Username is required.') };
+    }
+
+    const usernamePattern = /^[a-z0-9_]{3,30}$/;
+    if (!usernamePattern.test(normalizedUsername)) {
+      return { error: new Error('Username must be 3-30 chars and use only lowercase letters, numbers, or _.') };
+    }
+
+    const { data: existing, error: existingError } = await supabase
+      .from('profiles')
+      .select('id')
+      .ilike('username', normalizedUsername)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingError) {
+      return { error: new Error(existingError.message || 'Failed to validate username.') };
+    }
+
+    if (existing) {
+      return { error: new Error('Username already taken. Choose another one.') };
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { username },
+        data: { username: normalizedUsername },
         emailRedirectTo: Linking.createURL('auth'),
       },
     });
-    if (error) return { error };
+
+    if (error) {
+      const message = (error.message || '').toLowerCase();
+      if (message.includes('duplicate key') && message.includes('username')) {
+        return { error: new Error('Username already taken. Choose another one.') };
+      }
+      return { error };
+    }
 
     return { data };
   };

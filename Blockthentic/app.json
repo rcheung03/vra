@@ -1,62 +1,64 @@
 {
-  "expo": {
-    "name": "Blockthentic",
-    "slug": "Blockthentic",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "blockthentic",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "LSApplicationQueriesSchemes": [
-          "metamask",
-          "trust",
-          "rainbow",
-          "uniswap",
-          "safe"
-        ]
-      }
-    },
-    "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "output": "single",
-      "favicon": "./assets/images/favicon.png"
-    },
-    "plugins": [
-      "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
-          "dark": {
-            "backgroundColor": "#000000"
-          }
-        }
-      ]
-    ],
-    "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true,
-      "baseUrl": "/b10-blockchain-blockthentic" 
-    },
-    "extra": {
-      "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrZ2xwZ3l1eHNmb3Rjc3draHN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkzOTg2OTIsImV4cCI6MjA4NDk3NDY5Mn0.uUXUvEhhAI7kk6pXMLVSJJ8hwawuaWk9lcgsf4-aqYM",
-      "SUPABASE_URL": "https://kkglpgyuxsfotcswkhsy.supabase.co"
-    }
-  }
+    "expo":  {
+                 "name":  "Blockthentic",
+                 "slug":  "Blockthentic",
+                 "version":  "1.0.0",
+                 "orientation":  "portrait",
+                 "icon":  "./assets/images/icon.png",
+                 "scheme":  "blockthentic",
+                 "userInterfaceStyle":  "automatic",
+                 "newArchEnabled":  true,
+                 "ios":  {
+                             "supportsTablet":  true,
+                             "infoPlist":  {
+                                               "LSApplicationQueriesSchemes":  [
+                                                                                   "metamask",
+                                                                                   "trust",
+                                                                                   "rainbow",
+                                                                                   "uniswap",
+                                                                                   "safe"
+                                                                               ]
+                                           }
+                         },
+                 "android":  {
+                                 "adaptiveIcon":  {
+                                                      "backgroundColor":  "#E6F4FE",
+                                                      "foregroundImage":  "./assets/images/android-icon-foreground.png",
+                                                      "backgroundImage":  "./assets/images/android-icon-background.png",
+                                                      "monochromeImage":  "./assets/images/android-icon-monochrome.png"
+                                                  },
+                                 "edgeToEdgeEnabled":  true,
+                                 "predictiveBackGestureEnabled":  false
+                             },
+                 "web":  {
+                             "output":  "static",
+                             "favicon":  "./assets/images/favicon.png"
+                         },
+                 "plugins":  [
+                                 "expo-router",
+                                 [
+                                     "expo-splash-screen",
+                                     {
+                                         "image":  "./assets/images/splash-icon.png",
+                                         "imageWidth":  200,
+                                         "resizeMode":  "contain",
+                                         "backgroundColor":  "#ffffff",
+                                         "dark":  {
+                                                      "backgroundColor":  "#000000"
+                                                  }
+                                     }
+                                 ]
+                             ],
+                 "experiments":  {
+                                     "typedRoutes":  true,
+                                     "reactCompiler":  true
+                                 },
+                 "extra":  {
+                               "SUPABASE_ANON_KEY":  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrZ2xwZ3l1eHNmb3Rjc3draHN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkzOTg2OTIsImV4cCI6MjA4NDk3NDY5Mn0.uUXUvEhhAI7kk6pXMLVSJJ8hwawuaWk9lcgsf4-aqYM",
+                               "SUPABASE_URL":  "https://kkglpgyuxsfotcswkhsy.supabase.co",
+                               "FACTORY_ETHEREUM":  "0x4Dd850c69d0933fB3d93F8fA224D8f0455814BC1",
+                               "FACTORY_POLYGON":  "0x8b4e10c530EC6d0850508Ad33Dc9535f5f04b720",
+                               "FACTORY_ARBITRUM":  "0x8b4e10c530EC6d0850508Ad33Dc9535f5f04b720"
+                           }
+             }
 }

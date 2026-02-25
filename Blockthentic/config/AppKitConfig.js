@@ -1,14 +1,12 @@
-import '@walletconnect/react-native-compat';
 import { createAppKit } from '@reown/appkit-react-native';
 import { WagmiAdapter } from '@reown/appkit-wagmi-react-native';
 import {
-  arbitrumSepolia as appkitArbitrumSepolia,
-  polygonAmoy as appkitPolygonAmoy,
+  arbitrumSepolia as appkitArbitrumSepolia,  polygonAmoy as appkitPolygonAmoy,
   sepolia as appkitSepolia,
 } from '@reown/appkit/networks';
+import '@walletconnect/react-native-compat';
 import {
-  arbitrumSepolia as viemArbitrumSepolia,
-  polygonAmoy as viemPolygonAmoy,
+  arbitrumSepolia as viemArbitrumSepolia,  polygonAmoy as viemPolygonAmoy,
   sepolia as viemSepolia,
 } from 'viem/chains';
 import { storage } from './StorageUtil';
@@ -44,4 +42,3 @@ export const appKit = createAppKit({
   enableAnalytics: false,
 });
 
-export { useAppKit } from '@reown/appkit-react-native';

@@ -1,50 +1,64 @@
-# Welcome to your Expo app 👋
+# Blockchain Registry App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Mobile app for creating blockchain registries, registering file hashes, and verifying records across:
+- Ethereum Sepolia
+- Polygon Amoy
+- Arbitrum Sepolia
 
-## Get started
+## Current Feature Status
+
+### Implemented
+- Auth + user profile via Supabase
+- Create registry by deploying template contract via `RegistryFactory`
+- Persist registries in Supabase
+- Register file/hash on-chain (`registerDocument`, `registerDataset`, `registerMedia`)
+- Verify file/hash against selected registry (`verifyDocument`, `verifyDataset`, `verifyImage`)
+- Profile wallet controls in-app (`Connect/Disconnect`, `Wallet Settings`, `Switch Network`)
+
+### Important: Access Controls Today
+The Create screen stores these fields in registry config metadata:
+- `access_mode`: `owner_only`, `whitelist`, `public_read`
+- `required_approvals`: `1`, `2`, `3`
+
+Current deployed template contracts do **not** enforce these yet.
+Actual write access today is enforced by contract `onlyOwner`.
+
+So currently:
+- `public_read` / `whitelist` are policy intent labels in metadata.
+- `required_approvals` is also metadata intent.
+- On-chain writes still require owner signer only.
+
+## Setup
 
 1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
 ```bash
-npm run reset-project
+yarn install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+2. Configure `app.json` (`expo.extra`)
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `FACTORY_ETHEREUM`
+- `FACTORY_POLYGON`
+- `FACTORY_ARBITRUM`
 
-## Learn more
+3. Run SQL schema
+- Execute `sql/init.sql` in Supabase SQL editor.
 
-To learn more about developing your project with Expo, look at the following resources:
+4. Start app
+```bash
+yarn start -c
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## WalletConnect Session Behavior
 
-## Join the community
+By default, wallet sessions persist across restarts.
 
-Join our community of developers creating universal apps.
+If you want to force a fresh wallet session for a dev run:
+```powershell
+$env:EXPO_PUBLIC_WC_RESET_EPOCH=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+yarn start -c
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## On-chain Contracts
+See `onchain/README.md` for compile/deploy steps for `RegistryFactory` and templates.
