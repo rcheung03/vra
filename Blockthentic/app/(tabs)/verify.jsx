@@ -456,7 +456,7 @@ export default function VerifyPage() {
     const chainId = getChainIdByAppChain(selectedRegistry.chain);
     if (!chainId) throw new Error(`Unsupported chain: ${selectedRegistry.chain}`);
     if (currentChainId !== chainId) {
-      throw new Error(`Wrong wallet network. Switch wallet to eip155:${chainId}.`);
+      throw new Error(`Wrong wallet network. Switch wallet to registry chain (${selectedRegistry.chain}).`);
     }
 
     const targetCaip = `eip155:${chainId}`;

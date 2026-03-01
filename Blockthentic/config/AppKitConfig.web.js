@@ -1,6 +1,6 @@
 import { createAppKit } from '@reown/appkit/react';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
-import { sepolia, mainnet } from '@reown/appkit/networks';
+import { sepolia, polygonAmoy, arbitrumSepolia } from '@reown/appkit/networks';
 
 // 1. Project ID
 const projectId = "0cce245d34bb09adb3aadf8f9616a9bc";
@@ -14,7 +14,7 @@ const metadata = {
 };
 
 // 3. Define networks
-const networks = [sepolia, mainnet];
+const networks = [sepolia, polygonAmoy, arbitrumSepolia];
 
 // 4. Create Web Wagmi Adapter
 export const wagmiAdapter = new WagmiAdapter({
