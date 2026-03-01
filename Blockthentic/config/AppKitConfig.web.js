@@ -35,3 +35,6 @@ export const appKit = createAppKit({
 });
 
 export { useAppKit } from '@reown/appkit/react';
+
+export const AppKit = () => null;
+export const AppKitProvider = ({ children }) => <>{children}</>;

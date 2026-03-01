@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAppKit } from '@reown/appkit-react-native';
+import { useAppKit } from '../../config/AppKitConfig';
 import { useAccount, useDisconnect } from 'wagmi';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
@@ -102,7 +102,7 @@ export default function ProfilePage() {
   const userEmail = profile?.email || user?.email || 'Unknown';
   const memberSince = profile?.created_at
     ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-    : '—';
+    : 'ï¿½';
 
   const contractsCount = ownedRegistries.length;
 

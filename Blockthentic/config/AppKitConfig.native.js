@@ -44,4 +44,4 @@ export const appKit = createAppKit({
   enableAnalytics: false,
 });
 
-export { useAppKit } from '@reown/appkit-react-native';
+export { useAppKit, AppKit, AppKitProvider } from '@reown/appkit-react-native';

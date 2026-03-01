@@ -1,13 +1,34 @@
 import React, { useEffect } from 'react';
+import { Platform } from 'react-native'; 
 import '@walletconnect/react-native-compat';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppKit, AppKitProvider } from '@reown/appkit-react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WagmiProvider } from 'wagmi';
 import { Stack } from 'expo-router';
 
-import { appKit, wagmiAdapter } from '../config/AppKitConfig';
+
+import { appKit, wagmiAdapter, AppKit, AppKitProvider } from '../config/AppKitConfig';
 import { AuthProvider } from '../context/AuthContext';
+
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    @font-face {
+      font-family: 'ionicons';
+      src: url('https://unpkg.com/ionicons@5.5.2/dist/fonts/ionicons.ttf') format('truetype');
+    }
+    @font-face {
+      font-family: 'Ionicons';
+      src: url('https://unpkg.com/ionicons@5.5.2/dist/fonts/ionicons.ttf') format('truetype');
+    }
+    body, html, #root {
+      margin: 0 !important;
+      padding: 0 !important;
+      background-color: #bdc8fe; 
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 const queryClient = new QueryClient();
 const RESET_MARKER_KEY = '__wc_reset_epoch_applied__';
@@ -29,7 +50,6 @@ function shouldSuppressWalletConnectNoise(args) {
     text.includes('missing or invalid. decoded payload on topic')
   );
 }
-
 
 function getRequestedResetEpoch() {
   return process.env.EXPO_PUBLIC_WC_RESET_EPOCH || '';
@@ -64,6 +84,7 @@ async function applyWalletConnectResetPolicy() {
   }
 }
 
+// --- MAIN LAYOUT COMPONENT ---
 export default function Layout() {
   useEffect(() => {
     applyWalletConnectResetPolicy();
