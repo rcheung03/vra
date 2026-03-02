@@ -604,7 +604,7 @@ export default function CreatePage() {
       <LinearGradient colors={['#bdc8feff', '#fef4d3ff']} style={styles.background} />
 
       <SafeAreaView style={styles.safeArea}>
-        <Text style={styles.headerText}>Create</Text>
+        <Text style={styles.headerText}>Create a New Registry</Text>
 
         {currentStep !== STEPS.SUCCESS && <View style={styles.topSection}><ProgressBar currentStep={currentStep} /></View>}
 
