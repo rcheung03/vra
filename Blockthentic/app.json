@@ -51,7 +51,8 @@
                              ],
                  "experiments":  {
                                      "typedRoutes":  true,
-                                     "reactCompiler":  true
+                                     "reactCompiler":  true,
+                                     "baseUrl": "/b10-blockchain-blockthentic"
                                  },
                  "extra":  {
                                "SUPABASE_ANON_KEY":  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrZ2xwZ3l1eHNmb3Rjc3draHN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkzOTg2OTIsImV4cCI6MjA4NDk3NDY5Mn0.uUXUvEhhAI7kk6pXMLVSJJ8hwawuaWk9lcgsf4-aqYM",

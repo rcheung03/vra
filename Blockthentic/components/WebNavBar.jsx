@@ -10,7 +10,7 @@ export default function WebNavBar() {
   const tabs = [
     { name: 'Home', route: '/home', icon: 'home-outline' },
     { name: 'Create', route: '/create', icon: 'add-circle-outline' },
-    { name: 'Verify', route: '/verify', icon: 'shield-checkmark-outline' },
+    { name: 'Register/Verify', route: '/verify', icon: 'shield-checkmark-outline' },
     { name: 'Profile', route: '/profile', icon: 'person-outline' },
   ];
 

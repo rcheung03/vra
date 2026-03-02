@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Alert, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -74,6 +74,35 @@ function groupAssetsByRegistry(assets, registryMap) {
   return Array.from(grouped.values());
 }
 
+// Helper to filter Grouped Assets by Registry Name OR Document Name
+function filterGroups(groups, search) {
+  if (!search) return groups;
+  const lowerSearch = search.toLowerCase();
+  return groups.map(group => {
+    const registryMatch = group.registryName?.toLowerCase().includes(lowerSearch);
+    const filteredItems = group.items.filter(item =>
+      (item.file_name || '').toLowerCase().includes(lowerSearch)
+    );
+    if (registryMatch) return group; // If registry matches, show all its items
+    if (filteredItems.length > 0) return { ...group, items: filteredItems }; // If items match, show only those items
+    return null;
+  }).filter(Boolean);
+}
+
+// Reusable Search Component
+  const SearchBox = ({ value, onChange }) => (
+    <View style={styles.searchContainer}>
+      <Ionicons name="search-outline" size={18} color="rgba(0, 50, 98, 0.6)" />
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Filter results"
+        placeholderTextColor="rgba(0, 50, 98, 0.4)"
+        value={value}
+        onChangeText={onChange}
+      />
+    </View>
+  );
+
 export default function HomePage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -82,6 +111,14 @@ export default function HomePage() {
   const [assignedToMe, setAssignedToMe] = useState([]);
   const [registeredByMe, setRegisteredByMe] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Search & Expansion States
+  const [searchRegistries, setSearchRegistries] = useState('');
+  const [searchAssigned, setSearchAssigned] = useState('');
+  const [searchRegistered, setSearchRegistered] = useState('');
+  const [expandedRegistries, setExpandedRegistries] = useState(false);
+  const [expandedAssigned, setExpandedAssigned] = useState(false);
+  const [expandedRegistered, setExpandedRegistered] = useState(false);
 
   const loadData = React.useCallback(async () => {
     if (!user || !supabase) return;
@@ -238,6 +275,7 @@ export default function HomePage() {
     }
   };
 
+  // 1. Process Raw Data
   const contractCards = useMemo(() => (
     contracts.map((contract) => {
       const isOwner = contract.owner_id === user?.id;
@@ -262,12 +300,27 @@ export default function HomePage() {
     return m;
   }, [contracts]);
 
-  const assignedGrouped = useMemo(() => groupAssetsByRegistry(assignedToMe, registryMap), [assignedToMe, registryMap]);
-  const registeredGrouped = useMemo(() => groupAssetsByRegistry(registeredByMe, registryMap), [registeredByMe, registryMap]);
+  const assignedGroupedRaw = useMemo(() => groupAssetsByRegistry(assignedToMe, registryMap), [assignedToMe, registryMap]);
+  const registeredGroupedRaw = useMemo(() => groupAssetsByRegistry(registeredByMe, registryMap), [registeredByMe, registryMap]);
+
+  // 2. Filter Logic
+  const filteredRegistries = useMemo(() => {
+    if (!searchRegistries) return contractCards;
+    return contractCards.filter(c => c.title?.toLowerCase().includes(searchRegistries.toLowerCase()));
+  }, [contractCards, searchRegistries]);
+
+  const filteredAssigned = useMemo(() => filterGroups(assignedGroupedRaw, searchAssigned), [assignedGroupedRaw, searchAssigned]);
+  const filteredRegistered = useMemo(() => filterGroups(registeredGroupedRaw, searchRegistered), [registeredGroupedRaw, searchRegistered]);
+
+  // 3. Slicing Logic (Max 3 unless expanded)
+  const displayedRegistries = expandedRegistries ? filteredRegistries : filteredRegistries.slice(0, 3);
+  const displayedAssigned = expandedAssigned ? filteredAssigned : filteredAssigned.slice(0, 3);
+  const displayedRegistered = expandedRegistered ? filteredRegistered : filteredRegistered.slice(0, 3);
+
 
   const renderGroupedAssets = (groups, emptyMessage) => {
     if (groups.length === 0) {
-      return <Text style={styles.emptyText}>{emptyMessage}</Text>;
+      return <Text style={styles.emptyText}>{searchAssigned || searchRegistered ? "No matching assets found." : emptyMessage}</Text>;
     }
 
     return groups.map((group) => (
@@ -306,34 +359,64 @@ export default function HomePage() {
             <Text style={styles.greetingText}>Hi, {userName}</Text>
           </View>
 
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Accessible Registries</Text>
-          </View>
-
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            {contractCards.length > 0 ? (
-              contractCards.map((contract) => (
+            
+            {/* --- SECTION: Accessible Registries --- */}
+            <View style={styles.sectionHeaderContainer}>
+              <Text style={styles.sectionTitle}>Accessible Registries</Text>
+              <SearchBox value={searchRegistries} onChange={setSearchRegistries} />
+            </View>
+
+            {displayedRegistries.length > 0 ? (
+              displayedRegistries.map((contract) => (
                 <ContractCard key={contract.id} item={contract} />
               ))
             ) : (
               <Text style={styles.emptyText}>
-                {loading ? 'Loading registries...' : 'No registries available yet.'}
+                {loading ? 'Loading registries...' : (searchRegistries ? 'No matching registries found.' : 'No registries available yet.')}
               </Text>
+            )}
+
+            {filteredRegistries.length > 3 && (
+              <TouchableOpacity style={styles.showAllButton} onPress={() => setExpandedRegistries(!expandedRegistries)}>
+                <Text style={styles.showAllText}>{expandedRegistries ? 'Show less' : `Show all (${filteredRegistries.length})`}</Text>
+              </TouchableOpacity>
             )}
 
             <TouchableOpacity style={styles.addContractRow} onPress={() => router.push('/create')}>
               <Text style={styles.addContractText}>+ Create Registry</Text>
             </TouchableOpacity>
 
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Assets Assigned To Me</Text>
-            </View>
-            {renderGroupedAssets(assignedGrouped, 'No assets assigned to you yet.')}
 
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Assets Registered By Me</Text>
+            {/* --- SECTION: Assets Assigned To Me --- */}
+            <View style={styles.sectionHeaderContainer}>
+              <Text style={styles.sectionTitle}>Assets Assigned To Me</Text>
+              <SearchBox value={searchAssigned} onChange={setSearchAssigned} />
             </View>
-            {renderGroupedAssets(registeredGrouped, 'You have not registered any assets yet.')}
+            
+            {renderGroupedAssets(displayedAssigned, 'No assets assigned to you yet.')}
+            
+            {filteredAssigned.length > 3 && (
+              <TouchableOpacity style={styles.showAllButton} onPress={() => setExpandedAssigned(!expandedAssigned)}>
+                <Text style={styles.showAllText}>{expandedAssigned ? 'Show less groups' : `Show all groups (${filteredAssigned.length})`}</Text>
+              </TouchableOpacity>
+            )}
+
+
+            {/* --- SECTION: Assets Registered By Me --- */}
+            <View style={styles.sectionHeaderContainer}>
+              <Text style={styles.sectionTitle}>Assets Registered By Me</Text>
+              <SearchBox value={searchRegistered} onChange={setSearchRegistered} />
+            </View>
+
+            {renderGroupedAssets(displayedRegistered, 'You have not registered any assets yet.')}
+
+            {filteredRegistered.length > 3 && (
+              <TouchableOpacity style={styles.showAllButton} onPress={() => setExpandedRegistered(!expandedRegistered)}>
+                <Text style={styles.showAllText}>{expandedRegistered ? 'Show less groups' : `Show all groups (${filteredRegistered.length})`}</Text>
+              </TouchableOpacity>
+            )}
+
           </ScrollView>
         </View>
       </SafeAreaView>
@@ -348,9 +431,47 @@ const styles = StyleSheet.create({
   contentWrapper: { flex: 1, paddingHorizontal: 25, paddingTop: 20 },
   header: { alignItems: 'center', marginBottom: 30 },
   greetingText: { fontSize: 36, color: '#003262', fontWeight: '400' },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 15, marginTop: 8 },
+  
+  // Section Headers & Search
+  sectionHeaderContainer: {
+    marginBottom: 15,
+    marginTop: 15,
+    gap: 12, // Space between title and search box
+  },
   sectionTitle: { fontSize: 20, fontWeight: '800', color: '#003262' },
-  scrollContent: { paddingBottom: 120 },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)', // Slightly white to pop against background
+    borderWidth: 1,
+    borderColor: 'rgba(0, 50, 98, 0.4)',
+    borderRadius: 25, // Oval shaped
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    color: '#003262',
+    fontSize: 14,
+    fontWeight: '500',
+    ...(Platform.OS === 'web' && { outlineStyle: 'none' }), // Prevents weird browser border on click
+  },
+  
+  // Expansion Buttons
+  showAllButton: {
+    alignSelf: 'center',
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  showAllText: {
+    color: '#003262',
+    fontSize: 14,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+
+  scrollContent: { paddingBottom: 120, maxWidth: 800, width: '100%', alignSelf: 'center' },
   emptyText: { color: '#003262', fontSize: 14, textAlign: 'center', marginBottom: 20 },
   card: {
     backgroundColor: '#7d8ec4',
@@ -401,6 +522,3 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
 });
-
-
-

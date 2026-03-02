@@ -40,10 +40,8 @@ export default function TabLayout() {
             headerShown: false,
             tabBarShowLabel: false,
             
-            // --- RESTORED COLOR SETTINGS ---
-            tabBarActiveTintColor: '#004381ff', // Dark Blue when selected
-            tabBarInactiveTintColor: '#000000bf', // Black when unselected (High Contrast)
-            // -------------------------------
+            tabBarActiveTintColor: '#004381ff', 
+            tabBarInactiveTintColor: '#000000bf', 
 
             sceneStyle: { backgroundColor: 'transparent' }, 
             tabBarStyle: isWeb 
@@ -66,25 +64,25 @@ export default function TabLayout() {
           <Tabs.Screen
             name="home"
             options={{
-              tabBarIcon: ({ color }) => <Ionicons name="home-outline" size={32} color={color} />,
+              tabBarIcon: ({ color }) => <Ionicons name="home-outline" size={30} color={color} />,
             }}
           />
           <Tabs.Screen
             name="create"
             options={{
-              tabBarIcon: ({ color }) => <Ionicons name="add-circle-outline" size={32} color={color} />,
+              tabBarIcon: ({ color }) => <Ionicons name="add-circle-outline" size={30} color={color} />,
             }}
           />
           <Tabs.Screen
             name="verify"
             options={{
-              tabBarIcon: ({ color }) => <Ionicons name="shield-checkmark-outline" size={32} color={color} />,
+              tabBarIcon: ({ color }) => <Ionicons name="shield-checkmark-outline" size={30} color={color} />,
             }}
           />
           <Tabs.Screen
             name="profile"
             options={{
-              tabBarIcon: ({ color }) => <Ionicons name="person-outline" size={32} color={color} />,
+              tabBarIcon: ({ color }) => <Ionicons name="person-outline" size={30} color={color} />,
             }}
           />
         </Tabs>
