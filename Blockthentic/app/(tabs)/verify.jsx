@@ -27,6 +27,7 @@ import { wagmiAdapter } from '../../config/AppKitConfig';
 const MODE = {
   REGISTER: 'register',
   VERIFY: 'verify',
+  REVOKE: 'revoke',
 };
 
 const ASSET_BUCKET = 'registry-assets';
@@ -111,6 +112,61 @@ const REGISTER_ABI = {
     },
   ],
 };
+
+const REVOKE_ABI = [
+  {
+    inputs: [
+      { internalType: 'bytes32', name: 'hash', type: 'bytes32' },
+      { internalType: 'uint8', name: 'reason', type: 'uint8' },
+    ],
+    name: 'revoke',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'bytes32', name: 'hash', type: 'bytes32' }],
+    name: 'isRevoked',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'bytes32', name: 'hash', type: 'bytes32' }],
+    name: 'getStatus',
+    outputs: [
+      { internalType: 'bool', name: 'exists', type: 'bool' },
+      { internalType: 'bool', name: 'valid', type: 'bool' },
+      { internalType: 'uint8', name: 'reason', type: 'uint8' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+];
+
+const REVOCATION_REASONS = [
+  { id: 0, label: 'None' },
+  { id: 1, label: 'Expired' },
+  { id: 2, label: 'Superseded' },
+  { id: 3, label: 'Key Compromise' },
+  { id: 4, label: 'Affiliation Changed' },
+  { id: 5, label: 'Cessation of Operation' },
+  { id: 6, label: 'Privilege Withdrawn' },
+  { id: 7, label: 'Administrative Error' },
+  { id: 8, label: 'Fraudulent' },
+  { id: 9, label: 'Format Invalid' },
+  { id: 10, label: 'Other' },
+];
+
+function getRevocationReasonLabel(reasonId) {
+  const found = REVOCATION_REASONS.find((r) => r.id === Number(reasonId));
+  return found ? found.label : `Unknown (${reasonId})`;
+}
+
+function hasRevocationRegistry(registry) {
+  const addr = registry?.revocation_address;
+  return addr && addr !== '0x' && addr !== '0x0000000000000000000000000000000000000000';
+}
 
 const VERIFY_FUNCTION = {
   document: 'verifyDocument',
@@ -294,7 +350,7 @@ export default function VerifyPage() {
   const [pendingTxHash, setPendingTxHash] = useState(null);
   const [registries, setRegistries] = useState([]);
   const [selectedRegistryId, setSelectedRegistryId] = useState(null);
-  const [result, setResult] = useState(null);
+  const [selectedRevokeReason, setSelectedRevokeReason] = useState(1);
 
   useEffect(() => {
     let mounted = true;
@@ -305,7 +361,7 @@ export default function VerifyPage() {
       const [{ data: allRegistries, error: regErr }, { data: memberships, error: memberErr }] = await Promise.all([
         supabase
           .from('registries')
-          .select('id,owner_id,name,template_type,template_config,contract_address,chain,access_mode,deployment_status,created_at')
+          .select('id,owner_id,name,template_type,template_config,contract_address,revocation_address,chain,access_mode,deployment_status,created_at')
           .not('contract_address', 'is', null)
           .eq('deployment_status', 'deployed')
           .order('created_at', { ascending: false }),
@@ -713,8 +769,32 @@ export default function VerifyPage() {
         record = query.data || null;
       }
 
+      let revocationStatus = null;
+      if (verified && hasRevocationRegistry(selectedRegistry)) {
+        try {
+          const [exists, valid, reason] = await publicClient.readContract({
+            address: selectedRegistry.revocation_address,
+            abi: REVOKE_ABI,
+            functionName: 'getStatus',
+            args: [hash],
+          });
+          revocationStatus = { exists, valid, reason: Number(reason) };
+        } catch (revErr) {
+          console.warn('Revocation check failed (registry may predate revocation):', revErr.message);
+        }
+      }
+
+      let message;
+      if (!verified) {
+        message = 'Hash not found in this registry.';
+      } else if (revocationStatus && !revocationStatus.valid) {
+        message = `Hash exists but has been REVOKED (reason: ${getRevocationReasonLabel(revocationStatus.reason)}).`;
+      } else {
+        message = `Hash is valid and active in this registry${record?.assigned_username ? ` (assigned to ${record.assigned_username})` : ''}.`;
+      }
+
       setResult({
-        ok: Boolean(verified),
+        ok: verified && (!revocationStatus || revocationStatus.valid),
         mode: MODE.VERIFY,
         hash,
         txHash: record?.tx_hash || null,
@@ -722,13 +802,105 @@ export default function VerifyPage() {
         fileName: record?.file_name || null,
         metadataJson: record?.metadata_json || null,
         signerRuleLabel: record?.signer_rule_label || null,
-        message: verified
-          ? `Hash exists in this registry${record?.assigned_username ? ` (assigned to ${record.assigned_username})` : ''}.`
-          : 'Hash not found in this registry.',
+        revoked: revocationStatus ? !revocationStatus.valid : false,
+        revocationReason: revocationStatus?.reason || null,
+        message,
       });
     } catch (err) {
       setResult({ ok: false, mode: MODE.VERIFY, message: formatActionError(err, 'Verification failed') });
     } finally {
+      setBusy(false);
+    }
+  };
+
+    const handleRevoke = async () => {
+    if (!selectedRegistry?.contract_address) {
+      Alert.alert('Missing registry', 'Select a deployed registry.');
+      return;
+    }
+    if (!selectedRegistry?.can_register) {
+      Alert.alert('Permission denied', 'Only registry owner/admin can revoke assets.');
+      return;
+    }
+    if (!hasRevocationRegistry(selectedRegistry)) {
+      Alert.alert('No revocation registry', 'This registry was deployed without a revocation contract. Only registries created after the revocation update support this feature.');
+      return;
+    }
+    if (!publicClient) {
+      Alert.alert('Client unavailable', 'Wallet client is not ready.');
+      return;
+    }
+
+    try {
+      setBusy(true);
+      ensureWalletOnRegistryChain();
+
+      const hash = await getVerifyHash();
+      setFileHash(hash);
+
+
+      const verified = await publicClient.readContract({
+        address: selectedRegistry.contract_address,
+        abi: VERIFY_ABI[selectedType],
+        functionName: VERIFY_FUNCTION[selectedType],
+        args: [hash, hash],
+      });
+
+      if (!verified) {
+        setResult({
+          ok: false,
+          mode: MODE.REVOKE,
+          hash,
+          message: 'Hash not found in this registry. Cannot revoke an unregistered asset.',
+        });
+        return;
+      }
+
+
+      try {
+        const alreadyRevoked = await publicClient.readContract({
+          address: selectedRegistry.revocation_address,
+          abi: REVOKE_ABI,
+          functionName: 'isRevoked',
+          args: [hash],
+        });
+        if (alreadyRevoked) {
+          setResult({
+            ok: false,
+            mode: MODE.REVOKE,
+            hash,
+            message: 'This asset has already been revoked.',
+          });
+          return;
+        }
+      } catch (checkErr) {
+        console.warn('Pre-revocation check failed:', checkErr.message);
+      }
+
+      const txHash = await runWithFeeRetry(async () => {
+        const hashTx = await writeContractAsync({
+          address: selectedRegistry.revocation_address,
+          abi: REVOKE_ABI,
+          functionName: 'revoke',
+          args: [hash, selectedRevokeReason],
+        });
+        setPendingTxHash(hashTx);
+        return hashTx;
+      });
+
+      await publicClient.waitForTransactionReceipt({ hash: txHash });
+
+      setResult({
+        ok: true,
+        mode: MODE.REVOKE,
+        hash,
+        txHash,
+        message: `Asset revoked successfully (reason: ${getRevocationReasonLabel(selectedRevokeReason)}).`,
+      });
+    } catch (err) {
+      setResult({ ok: false, mode: MODE.REVOKE, message: formatActionError(err, 'Revocation failed') });
+    } finally {
+      setPendingTxHash(null);
       setBusy(false);
     }
   };
@@ -741,6 +913,7 @@ export default function VerifyPage() {
     setAssignUsername('');
     setMetadataValues({});
     setSelectedSignerRule('');
+    setSelectedRevokeReason(1);
     setFileHash(null);
     setResult(null);
   };
@@ -783,6 +956,9 @@ export default function VerifyPage() {
             <TouchableOpacity style={[styles.modeChip, mode === MODE.VERIFY && styles.modeChipActive]} onPress={() => { setMode(MODE.VERIFY); setResult(null); }}>
               <Text style={styles.modeText}>Verify</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={[styles.modeChip, mode === MODE.REVOKE && styles.modeChipActive]} onPress={() => { setMode(MODE.REVOKE); setResult(null); }}>
+              <Text style={styles.modeText}>Revoke</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.block}>
@@ -818,6 +994,27 @@ export default function VerifyPage() {
                 autoCapitalize="none"
                 autoCorrect={false}
               />
+            )}
+            {mode === MODE.REVOKE && (
+              <>
+                <Text style={[styles.registryMeta, { marginTop: 6 }]}>Revocation Reason</Text>
+                <View style={styles.typeRow}>
+                  {REVOCATION_REASONS.filter((r) => r.id !== 0).map((reason) => (
+                    <TouchableOpacity
+                      key={reason.id}
+                      style={[styles.typeChip, selectedRevokeReason === reason.id && styles.typeChipActive]}
+                      onPress={() => setSelectedRevokeReason(reason.id)}
+                    >
+                      <Text style={styles.typeText}>{reason.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {!hasRevocationRegistry(selectedRegistry) && selectedRegistry && (
+                  <Text style={[styles.permissionText, { color: '#b71c1c', marginTop: 6 }]}>
+                    This registry does not have a revocation contract. Only new registries support revocation.
+                  </Text>
+                )}
+              </>
             )}
             {mode === MODE.REGISTER && (
               <>
@@ -892,15 +1089,25 @@ export default function VerifyPage() {
           </View>
 
           <TouchableOpacity
-            style={[styles.primaryBtn, busy && styles.disabledBtn]}
+            style={[styles.primaryBtn, busy && styles.disabledBtn, mode === MODE.REVOKE && styles.revokeBtn]}
             disabled={busy || !selectedRegistryId}
-            onPress={mode === MODE.REGISTER ? handleRegister : handleVerify}
+            onPress={mode === MODE.REGISTER ? handleRegister : mode === MODE.REVOKE ? handleRevoke : handleVerify}
           >
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>{mode === MODE.REGISTER ? (pendingTxHash ? 'Waiting for confirmation...' : 'Register On-Chain') : 'Verify Hash'}</Text>}
+            {busy ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.primaryText}>
+                {mode === MODE.REGISTER
+                  ? (pendingTxHash ? 'Waiting for confirmation...' : 'Register On-Chain')
+                  : mode === MODE.REVOKE
+                    ? (pendingTxHash ? 'Waiting for confirmation...' : 'Revoke Asset')
+                    : 'Verify Hash'}
+              </Text>
+            )}
           </TouchableOpacity>
 
-          {mode === MODE.REGISTER && selectedRegistry && !selectedRegistry.can_register ? (
-            <Text style={styles.permissionText}>You are {selectedRegistry.user_role} for this registry. Only owner/admin can register.</Text>
+          {(mode === MODE.REGISTER || mode === MODE.REVOKE) && selectedRegistry && !selectedRegistry.can_register ? (
+            <Text style={styles.permissionText}>You are {selectedRegistry.user_role} for this registry. Only owner/admin can {mode === MODE.REVOKE ? 'revoke' : 'register'}.</Text>
           ) : null}
 
           <TouchableOpacity style={styles.secondaryBtn} onPress={resetForm}>
@@ -915,6 +1122,8 @@ export default function VerifyPage() {
               {result.txHash ? <Text style={styles.resultLine}>Tx: {short(result.txHash)}</Text> : null}
               {result.resourceUri ? <Text style={styles.resultLine}>URI: {result.resourceUri}</Text> : null}
               {result.signerRuleLabel ? <Text style={styles.resultLine}>Signer Rule: {result.signerRuleLabel}</Text> : null}
+              {result.revoked ? <Text style={[styles.resultLine, { color: '#b71c1c', fontWeight: '700' }]}>Status: REVOKED</Text> : null}
+              {result.revocationReason ? <Text style={styles.resultLine}>Revocation Reason: {getRevocationReasonLabel(result.revocationReason)}</Text> : null}
               {result.metadataJson ? <Text style={styles.resultLine}>Metadata: {JSON.stringify(result.metadataJson)}</Text> : null}
             </View>
           )}
@@ -956,6 +1165,7 @@ const styles = StyleSheet.create({
   fileBtnText: { color: '#003262', fontWeight: '600' },
   input: { borderWidth: 1, borderColor: '#003262', borderRadius: 10, padding: 10, backgroundColor: 'rgba(255,255,255,0.5)', marginBottom: 8, color: '#003262' },
   primaryBtn: { backgroundColor: '#003262', borderRadius: 20, paddingVertical: 13, alignItems: 'center', marginTop: 6 },
+  revokeBtn: { backgroundColor: '#b71c1c' },
   disabledBtn: { opacity: 0.6 },
   primaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   secondaryBtn: { alignItems: 'center', marginTop: 12 },

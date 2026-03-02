@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "./RevocationRegistry.sol";
 import "./DocumentRegistryTemplate.sol";
 import "./DatasetRegistryTemplate.sol";
 import "./MediaRegistryTemplate.sol";
@@ -46,15 +47,44 @@ contract RegistryFactory {
 
         TemplateType t = TemplateType(templateType);
 
+        // -----------------------------------------------------------
+        // Step 1: Deploy revocation registry FIRST.
+        //         Factory (address(this)) is temporary owner so
+        //         the factory can call setVerificationContract() and
+        //         then transfer ownership to the user.
+        // -----------------------------------------------------------
+        RevocationRegistry revoc = new RevocationRegistry(address(this));
+        revocationRegistry = address(revoc);
+
+        // -----------------------------------------------------------
+        // Step 2: Deploy the verification registry.
+        //         User (msg.sender) is the owner.
+        //         Pass the revocation registry address for tight coupling.
+        // -----------------------------------------------------------
         if (t == TemplateType.DOCUMENT) {
-            verificationRegistry = address(new DocumentRegistryTemplate(msg.sender));
+            verificationRegistry = address(new DocumentRegistryTemplate(msg.sender, revocationRegistry));
         } else if (t == TemplateType.DATASET) {
-            verificationRegistry = address(new DatasetRegistryTemplate(msg.sender));
+            verificationRegistry = address(new DatasetRegistryTemplate(msg.sender, revocationRegistry));
         } else {
-            verificationRegistry = address(new MediaRegistryTemplate(msg.sender));
+            verificationRegistry = address(new MediaRegistryTemplate(msg.sender, revocationRegistry));
         }
 
-        revocationRegistry = address(0);
+        // -----------------------------------------------------------
+        // Step 3: Link the tightly coupled pair.
+        //         Factory is the current owner of revoc, so it can
+        //         call setVerificationContract().
+        // -----------------------------------------------------------
+        revoc.setVerificationContract(verificationRegistry);
+
+        // -----------------------------------------------------------
+        // Step 4: Transfer revocation registry ownership to user.
+        //         After this, only the user's wallet can revoke.
+        // -----------------------------------------------------------
+        revoc.transferOwnership(msg.sender);
+
+        // -----------------------------------------------------------
+        // Step 5: Store record and emit event.
+        // -----------------------------------------------------------
         registryId = nextRegistryId++;
 
         registries[registryId] = RegistryRecord({

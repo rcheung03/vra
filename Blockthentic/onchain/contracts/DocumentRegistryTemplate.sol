@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "./IRevocationRegistry.sol";
+
 contract DocumentRegistryTemplate {
     struct Document {
         bytes32 docHash;
@@ -10,6 +12,7 @@ contract DocumentRegistryTemplate {
     }
 
     address public owner;
+    address public revocationRegistry;
     mapping(bytes32 => Document) private documents;
 
     event DocumentRegistered(bytes32 indexed docId, bytes32 indexed docHash, address indexed issuer, string uri, uint256 timestamp);
@@ -20,9 +23,10 @@ contract DocumentRegistryTemplate {
         _;
     }
 
-    constructor(address initialOwner) {
+    constructor(address initialOwner, address _revocationRegistry) {
         require(initialOwner != address(0), "Invalid owner");
         owner = initialOwner;
+        revocationRegistry = _revocationRegistry;
     }
 
     function transferOwnership(address newOwner) external onlyOwner {
@@ -42,6 +46,11 @@ contract DocumentRegistryTemplate {
             issuedAt: block.timestamp,
             uri: uri
         });
+
+        // Mirror-register on the paired revocation registry
+        if (revocationRegistry != address(0)) {
+            IRevocationRegistry(revocationRegistry).register(docHash);
+        }
 
         emit DocumentRegistered(docId, docHash, msg.sender, uri, block.timestamp);
     }
