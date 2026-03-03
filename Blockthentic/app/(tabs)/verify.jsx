@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Platform,
   TextInput,
 } from 'react-native';
@@ -28,8 +27,10 @@ const MODE = {
   REGISTER: 'register',
   VERIFY: 'verify',
   REVOKE: 'revoke',
+  PERMISSIONS: 'permissions',
 };
 
+const MEMBER_ROLES = ['admin', 'user'];
 const ASSET_BUCKET = 'registry-assets';
 
 const VERIFY_ABI = {
@@ -230,9 +231,7 @@ function inferContentKind(file) {
 
   if (mime.startsWith('image/') || /\.(png|jpg|jpeg|gif|webp|bmp|tiff|heic)$/i.test(name)) return 'image';
   if (mime.startsWith('video/') || /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(name)) return 'video';
-
   if (mime.includes('pdf') || mime.includes('msword') || mime.includes('officedocument.wordprocessingml') || /\.(pdf|doc|docx|txt|rtf)$/i.test(name)) return 'document';
-
   if (mime.includes('csv') || mime.includes('json') || mime.includes('xml') || mime.includes('excel') || mime.includes('spreadsheet') || /\.(csv|json|xml|parquet|tsv|xls|xlsx)$/i.test(name)) return 'dataset';
 
   return 'unknown';
@@ -277,6 +276,7 @@ function canUseSignerRule(rule, userRole) {
   }
   return false;
 }
+
 function isFeeCapError(error) {
   const msg = (error?.message || String(error || '')).toLowerCase();
   return msg.includes('max fee per gas less than block base fee') || (msg.includes('fee cap') && msg.includes('base fee'));
@@ -353,6 +353,11 @@ export default function VerifyPage() {
   const [result, setResult] = useState(null);
   const [selectedRevokeReason, setSelectedRevokeReason] = useState(1);
 
+  const [members, setMembers] = useState([]);
+  const [inviteUsername, setInviteUsername] = useState('');
+  const [inviteRole, setInviteRole] = useState('user');
+  const [inviteMessage, setInviteMessage] = useState({ type: '', text: '' });
+
   useEffect(() => {
     let mounted = true;
 
@@ -377,9 +382,6 @@ export default function VerifyPage() {
       if (regErr) {
         console.error('Failed to load registries:', regErr.message);
         return;
-      }
-      if (memberErr) {
-        console.error('Failed to load memberships:', memberErr.message);
       }
 
       const membershipMap = new Map((memberships || []).map((m) => [m.registry_id, m.role]));
@@ -445,6 +447,45 @@ export default function VerifyPage() {
     setSelectedSignerRule((prev) => (prev && signerRules.includes(prev) ? prev : signerRules[0]));
   }, [mode, metadataFields, signerRules]);
 
+  const loadMembers = React.useCallback(async () => {
+    if (mode !== MODE.PERMISSIONS || !selectedRegistryId || !supabase) {
+      setMembers([]);
+      return;
+    }
+
+    const { data: memberships, error } = await supabase
+      .from('registry_memberships')
+      .select('id, user_id, role, status, created_at')
+      .eq('registry_id', selectedRegistryId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Load members failed:', error.message);
+      return;
+    }
+
+    if (!memberships || memberships.length === 0) {
+      setMembers([]);
+      return;
+    }
+
+    const userIds = memberships.map((m) => m.user_id);
+    const { data: profiles } = await supabase.from('profiles').select('id, username, email').in('id', userIds);
+    const profileMap = new Map((profiles || []).map((p) => [p.id, p]));
+
+    setMembers(
+      memberships.map((m) => ({
+        ...m,
+        username: profileMap.get(m.user_id)?.username || 'unknown',
+        email: profileMap.get(m.user_id)?.email || '',
+      }))
+    );
+  }, [selectedRegistryId, mode]);
+
+  useEffect(() => {
+    loadMembers();
+  }, [loadMembers]);
+
   const pickDocument = async () => {
     try {
       const response = await DocumentPicker.getDocumentAsync({
@@ -458,7 +499,7 @@ export default function VerifyPage() {
         setFileHash(null);
       }
     } catch (err) {
-      Alert.alert('File pick failed', err?.message || String(err));
+      setResult({ ok: false, mode: MODE.REGISTER, message: err?.message || String(err) });
     }
   };
 
@@ -513,7 +554,7 @@ export default function VerifyPage() {
     const chainId = getChainIdByAppChain(selectedRegistry.chain);
     if (!chainId) throw new Error(`Unsupported chain: ${selectedRegistry.chain}`);
     if (currentChainId !== chainId) {
-      throw new Error(`Wrong wallet network. Switch wallet to eip155:${chainId}.`);
+      throw new Error(`Wrong wallet network. Switch wallet to registry chain (${selectedRegistry.chain}).`);
     }
 
     const targetCaip = `eip155:${chainId}`;
@@ -618,15 +659,15 @@ export default function VerifyPage() {
 
   const handleRegister = async () => {
     if (!selectedRegistry?.contract_address) {
-      Alert.alert('Missing registry', 'Select a deployed registry.');
+      setResult({ ok: false, mode: MODE.REGISTER, message: 'Select a deployed registry.' });
       return;
     }
     if (!selectedRegistry?.can_register) {
-      Alert.alert('Permission denied', 'Only registry owner/admin can register assets.');
+      setResult({ ok: false, mode: MODE.REGISTER, message: 'Only registry owner/admin can register assets.' });
       return;
     }
     if (!publicClient) {
-      Alert.alert('Client unavailable', 'Wallet client is not ready.');
+      setResult({ ok: false, mode: MODE.REGISTER, message: 'Wallet client is not ready.' });
       return;
     }
 
@@ -654,7 +695,7 @@ export default function VerifyPage() {
         }
       }
 
-            if (signerRules.length > 0) {
+      if (signerRules.length > 0) {
         if (!selectedSignerRule) {
           throw new Error('Select a signer rule for this registry.');
         }
@@ -720,15 +761,15 @@ export default function VerifyPage() {
 
   const handleVerify = async () => {
     if (!selectedRegistry?.contract_address) {
-      Alert.alert('Missing registry', 'Select a deployed registry.');
+      setResult({ ok: false, mode: MODE.VERIFY, message: 'Select a deployed registry.' });
       return;
     }
     if (!selectedRegistry?.can_verify) {
-      Alert.alert('Permission denied', 'You do not have verification access for this registry.');
+      setResult({ ok: false, mode: MODE.VERIFY, message: 'You do not have verification access for this registry.' });
       return;
     }
     if (!publicClient) {
-      Alert.alert('Client unavailable', 'Wallet client is not ready.');
+      setResult({ ok: false, mode: MODE.VERIFY, message: 'Wallet client is not ready.' });
       return;
     }
 
@@ -904,6 +945,57 @@ export default function VerifyPage() {
       setPendingTxHash(null);
       setBusy(false);
     }
+  const inviteMember = async () => {
+    setInviteMessage({ type: '', text: '' });
+
+    if (!selectedRegistryId) {
+      setInviteMessage({ type: 'error', text: 'Select a registry first.' });
+      return;
+    }
+
+    const normalized = inviteUsername.trim().toLowerCase();
+    if (!normalized) {
+      setInviteMessage({ type: 'error', text: 'Enter a username to invite.' });
+      return;
+    }
+
+    const { data: targetProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, username')
+      .ilike('username', normalized)
+      .limit(1)
+      .maybeSingle();
+
+    if (profileError) {
+      setInviteMessage({ type: 'error', text: profileError.message });
+      return;
+    }
+    if (!targetProfile) {
+      setInviteMessage({ type: 'error', text: `Username "${normalized}" does not exist.` });
+      return;
+    }
+
+    const payload = {
+      registry_id: selectedRegistryId,
+      user_id: targetProfile.id,
+      role: inviteRole,
+      status: 'active',
+      invited_by: user.id,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from('registry_memberships')
+      .upsert(payload, { onConflict: 'registry_id,user_id' });
+
+    if (error) {
+      setInviteMessage({ type: 'error', text: error.message });
+      return;
+    }
+
+    setInviteUsername('');
+    setInviteMessage({ type: 'success', text: `Added ${targetProfile.username} as ${inviteRole}.` });
+    loadMembers();
   };
 
   const resetForm = () => {
@@ -959,6 +1051,8 @@ export default function VerifyPage() {
             </TouchableOpacity>
             <TouchableOpacity style={[styles.modeChip, mode === MODE.REVOKE && styles.modeChipActive]} onPress={() => { setMode(MODE.REVOKE); setResult(null); }}>
               <Text style={styles.modeText}>Revoke</Text>
+            <TouchableOpacity style={[styles.modeChip, mode === MODE.PERMISSIONS && styles.modeChipActive]} onPress={() => { setMode(MODE.PERMISSIONS); setResult(null); }}>
+              <Text style={styles.modeText}>Permissions</Text>
             </TouchableOpacity>
           </View>
 
@@ -1019,75 +1113,131 @@ export default function VerifyPage() {
             )}
             {mode === MODE.REGISTER && (
               <>
+          {mode !== MODE.PERMISSIONS && (
+            <View style={styles.block}>
+              <Text style={styles.label}>Input</Text>
+              <TouchableOpacity style={styles.fileBtn} onPress={pickDocument}>
+                <Ionicons name="document-outline" size={18} color="#003262" />
+                <Text style={styles.fileBtnText}>{file ? `File: ${file.name}` : 'Pick file'}</Text>
+              </TouchableOpacity>
+              {mode === MODE.VERIFY && (
                 <TextInput
                   style={styles.input}
-                  value={assetName}
-                  onChangeText={setAssetName}
-                  placeholder="Asset display name (required)"
+                  value={manualHash}
+                  onChangeText={setManualHash}
+                  placeholder="or paste 0x... hash"
                   placeholderTextColor="#666"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-                {signerRules.length > 0 && (
-                  <>
-                    <Text style={styles.registryMeta}>Signer Rule</Text>
-                    <View style={styles.typeRow}>
-                      {signerRules.map((rule) => {
-                        const selected = selectedSignerRule === rule;
-                        const allowed = canUseSignerRule(rule, selectedRegistry?.user_role);
-                        return (
-                          <TouchableOpacity
-                            key={rule}
-                            style={[styles.typeChip, selected && styles.typeChipActive, !allowed && { opacity: 0.45 }]}
-                            onPress={() => setSelectedSignerRule(rule)}
-                          >
-                            <Text style={styles.typeText}>{rule}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </>
-                )}
+              )}
+              {mode === MODE.REGISTER && (
+                <>
+                  <TextInput
+                    style={styles.input}
+                    value={assetName}
+                    onChangeText={setAssetName}
+                    placeholder="Asset display name (required)"
+                    placeholderTextColor="#666"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  {signerRules.length > 0 && (
+                    <>
+                      <Text style={styles.registryMeta}>Signer Rule</Text>
+                      <View style={styles.typeRow}>
+                        {signerRules.map((rule) => {
+                          const selected = selectedSignerRule === rule;
+                          const allowed = canUseSignerRule(rule, selectedRegistry?.user_role);
+                          return (
+                            <TouchableOpacity
+                              key={rule}
+                              style={[styles.typeChip, selected && styles.typeChipActive, !allowed && { opacity: 0.45 }]}
+                              onPress={() => setSelectedSignerRule(rule)}
+                            >
+                              <Text style={styles.typeText}>{rule}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </>
+                  )}
 
-                {metadataFields.length > 0 && (
-                  <>
-                    <Text style={styles.registryMeta}>Required Metadata</Text>
-                    {metadataFields.map((field) => (
-                      <TextInput
-                        key={field}
-                        style={styles.input}
-                        value={metadataValues[field] || ''}
-                        onChangeText={(text) => setMetadataValues((prev) => ({ ...prev, [field]: text }))}
-                        placeholder={`${field} (required)`}
-                        placeholderTextColor="#666"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                      />
-                    ))}
-                  </>
-                )}
+                  {metadataFields.length > 0 && (
+                    <>
+                      <Text style={styles.registryMeta}>Required Metadata</Text>
+                      {metadataFields.map((field) => (
+                        <TextInput
+                          key={field}
+                          style={styles.input}
+                          value={metadataValues[field] || ''}
+                          onChangeText={(text) => setMetadataValues((prev) => ({ ...prev, [field]: text }))}
+                          placeholder={`${field} (required)`}
+                          placeholderTextColor="#666"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                      ))}
+                    </>
+                  )}
 
+                  <TextInput
+                    style={styles.input}
+                    value={resourceUri}
+                    onChangeText={setResourceUri}
+                    placeholder="Optional URI (ipfs://..., https://...)"
+                    placeholderTextColor="#666"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    value={assignUsername}
+                    onChangeText={setAssignUsername}
+                    placeholder="Assign to username (optional, defaults to you)"
+                    placeholderTextColor="#666"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </>
+              )}
+            </View>
+          )}
+
+          {mode !== MODE.PERMISSIONS && (
+            <TouchableOpacity
+              style={[styles.primaryBtn, busy && styles.disabledBtn]}
+              disabled={busy || !selectedRegistryId}
+              onPress={mode === MODE.REGISTER ? handleRegister : handleVerify}
+            >
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>{mode === MODE.REGISTER ? (pendingTxHash ? 'Waiting for confirmation...' : 'Register On-Chain') : 'Verify Hash'}</Text>}
+            </TouchableOpacity>
+          )}
+
+          {mode === MODE.REGISTER && selectedRegistry && !selectedRegistry.can_register ? (
+            <Text style={styles.permissionText}>You are {selectedRegistry.user_role} for this registry. Only owner/admin can register.</Text>
+          ) : null}
+
+          {mode !== MODE.PERMISSIONS && (
+            <TouchableOpacity style={styles.secondaryBtn} onPress={resetForm}>
+              <Text style={styles.secondaryText}>Clear</Text>
+            </TouchableOpacity>
+          )}
+
+          {mode === MODE.PERMISSIONS && selectedRegistry && selectedRegistry.user_role === 'owner' && (
+             <View style={styles.block}>
+                <Text style={styles.label}>Invite Username</Text>
                 <TextInput
                   style={styles.input}
-                  value={resourceUri}
-                  onChangeText={setResourceUri}
-                  placeholder="Optional URI (ipfs://..., https://...)"
-                  placeholderTextColor="#666"
+                  value={inviteUsername}
+                  onChangeText={(text) => {
+                    setInviteUsername(text);
+                    setInviteMessage({ type: '', text: '' });
+                  }}
                   autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <TextInput
-                  style={styles.input}
-                  value={assignUsername}
-                  onChangeText={setAssignUsername}
-                  placeholder="Assign to username (optional, defaults to you)"
+                  placeholder="username"
                   placeholderTextColor="#666"
-                  autoCapitalize="none"
-                  autoCorrect={false}
                 />
-              </>
-            )}
-          </View>
 
           <TouchableOpacity
             style={[styles.primaryBtn, busy && styles.disabledBtn, mode === MODE.REVOKE && styles.revokeBtn]}
@@ -1110,10 +1260,46 @@ export default function VerifyPage() {
           {(mode === MODE.REGISTER || mode === MODE.REVOKE) && selectedRegistry && !selectedRegistry.can_register ? (
             <Text style={styles.permissionText}>You are {selectedRegistry.user_role} for this registry. Only owner/admin can {mode === MODE.REVOKE ? 'revoke' : 'register'}.</Text>
           ) : null}
+                <Text style={styles.label}>Role</Text>
+                <View style={styles.typeRow}>
+                  {MEMBER_ROLES.map((role) => (
+                    <TouchableOpacity
+                      key={role}
+                      style={[styles.typeChip, inviteRole === role && styles.typeChipActive]}
+                      onPress={() => setInviteRole(role)}
+                    >
+                      <Text style={styles.typeText}>{role}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
 
-          <TouchableOpacity style={styles.secondaryBtn} onPress={resetForm}>
-            <Text style={styles.secondaryText}>Clear</Text>
-          </TouchableOpacity>
+                <TouchableOpacity style={styles.inviteBtn} onPress={inviteMember}>
+                  <Text style={styles.inviteBtnText}>Add / Update Member</Text>
+                </TouchableOpacity>
+
+                {inviteMessage.text ? (
+                  <Text style={inviteMessage.type === 'error' ? styles.inviteErrorText : styles.inviteSuccessText}>
+                    {inviteMessage.text}
+                  </Text>
+                ) : null}
+
+                <Text style={[styles.label, { marginTop: 20 }]}>Current Members</Text>
+                {members.length === 0 ? (
+                  <Text style={styles.emptyText}>No members added yet.</Text>
+                ) : (
+                  members.map((member) => (
+                    <View key={member.id} style={styles.memberRow}>
+                      <Text style={styles.memberName}>{member.username}</Text>
+                      <Text style={styles.memberRole}>{member.role}</Text>
+                    </View>
+                  ))
+                )}
+             </View>
+          )}
+
+          {mode === MODE.PERMISSIONS && selectedRegistry && selectedRegistry.user_role !== 'owner' && (
+             <Text style={styles.permissionText}>Only the registry owner can manage permissions.</Text>
+          )}
 
           {result && (
             <View style={[styles.resultCard, result.ok ? styles.okCard : styles.errCard]}>
@@ -1134,7 +1320,7 @@ export default function VerifyPage() {
           </TouchableOpacity>
 
           <Text style={styles.footerHint}>Connected wallet: {address ? short(address) : 'not connected'}</Text>
-          {fileHash ? <Text style={styles.footerHint}>Last hash: {short(fileHash)}</Text> : null}
+          {fileHash && mode !== MODE.PERMISSIONS ? <Text style={styles.footerHint}>Last hash: {short(fileHash)}</Text> : null}
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -1145,7 +1331,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   background: { position: 'absolute', left: 0, right: 0, top: 0, height: '100%' },
   safeArea: { flex: 1, paddingTop: 10 },
-  content: { paddingHorizontal: 22, paddingBottom: 120 },
+  content: { paddingHorizontal: 22, paddingBottom: 120, maxWidth: 800, width: '100%', alignSelf: 'center' },
   title: { fontSize: 28, color: '#003262', fontWeight: '700', textAlign: 'center', marginVertical: 10 },
   modeRow: { flexDirection: 'row', gap: 10, marginBottom: 14, justifyContent: 'center' },
   modeChip: { borderWidth: 1, borderColor: '#003262', borderRadius: 18, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: 'rgba(125, 142, 196, 0.25)' },
@@ -1153,7 +1339,7 @@ const styles = StyleSheet.create({
   modeText: { color: '#003262', fontWeight: '700' },
   block: { marginBottom: 12 },
   label: { color: '#003262', fontWeight: '700', marginBottom: 6 },
-  typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   typeChip: { borderWidth: 1, borderColor: '#003262', borderRadius: 14, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: 'rgba(125, 142, 196, 0.25)' },
   typeChipActive: { backgroundColor: '#7d8ec4' },
   typeText: { color: '#003262', fontWeight: '600' },
@@ -1179,27 +1365,27 @@ const styles = StyleSheet.create({
   resultMessage: { color: '#003262', marginBottom: 6 },
   resultLine: { color: '#003262', fontSize: 12 },
   footerHint: { marginTop: 8, color: '#003262', opacity: 0.8, fontSize: 12, textAlign: 'center' },
+  inviteBtn: {
+    marginTop: 12,
+    backgroundColor: '#003262',
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  inviteBtnText: { color: '#fff', fontWeight: '700' },
+  inviteErrorText: { color: '#b71c1c', fontSize: 14, marginTop: 8, textAlign: 'center', fontWeight: '600' },
+  inviteSuccessText: { color: '#2e7d32', fontSize: 14, marginTop: 8, textAlign: 'center', fontWeight: '600' },
+  memberRow: {
+    borderWidth: 1,
+    borderColor: '#003262',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(125,142,196,0.2)',
+  },
+  memberName: { color: '#003262', fontWeight: '600' },
+  memberRole: { color: '#003262', fontWeight: '700' },
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -15,11 +15,11 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
   style.textContent = `
     @font-face {
       font-family: 'ionicons';
-      src: url('https://unpkg.com/ionicons@5.5.2/dist/fonts/ionicons.ttf') format('truetype');
+      src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.0.3/Fonts/Ionicons.ttf') format('truetype');
     }
     @font-face {
       font-family: 'Ionicons';
-      src: url('https://unpkg.com/ionicons@5.5.2/dist/fonts/ionicons.ttf') format('truetype');
+      src: url('https://cdn.jsdelivr.net/npm/react-native-vector-icons@10.0.3/Fonts/Ionicons.ttf') format('truetype');
     }
     body, html, #root {
       margin: 0 !important;
